@@ -9,6 +9,7 @@ from .markdown import merge_markdown
 from .models import Manifest
 from .report import write_manifest, write_report
 from .tools import ToolError, run_convert2mermaid, run_pandoc, tool_version
+from .vsdx import VsdxError, convert_vsdx, mermaid_structure_counts
 
 
 class PipelineError(RuntimeError):
@@ -79,12 +80,57 @@ def convert(
                 diagram.raw_mermaid = raw_mermaid.relative_to(output_dir).as_posix()
                 if diagram.status != "unmapped":
                     diagram.status = "mermaid_generated"
+                native_candidate = source_vsdx.parent / "native-fallback.mmd"
+                try:
+                    native_nodes, native_edges = convert_vsdx(
+                        source_vsdx, native_candidate
+                    )
+                    external_nodes, external_edges = mermaid_structure_counts(
+                        raw_mermaid.read_text(encoding="utf-8")
+                    )
+                    if (
+                        external_nodes < native_nodes
+                        or external_edges < native_edges
+                    ):
+                        shutil.move(native_candidate, raw_mermaid)
+                        diagram.warnings.append(
+                            "External convert2mermaid output was structurally "
+                            f"incomplete ({external_nodes} nodes/{external_edges} "
+                            f"edges versus {native_nodes}/{native_edges}); used "
+                            "native Open XML output."
+                        )
+                    else:
+                        native_candidate.unlink(missing_ok=True)
+                except VsdxError as validation_exc:
+                    diagram.warnings.append(
+                        "Could not cross-check external Mermaid output with the "
+                        f"native parser: {validation_exc}"
+                    )
             except ToolError as exc:
-                diagram.status = "conversion_failed"
-                diagram.warnings.append(f"convert2mermaid failed: {exc}")
+                diagram.warnings.append(
+                    f"External convert2mermaid failed; used native Open XML fallback: {exc}"
+                )
                 if exc.output:
                     (source_vsdx.parent / "converter.log").write_text(
                         exc.output, encoding="utf-8"
+                    )
+                try:
+                    node_count, edge_count = convert_vsdx(
+                        source_vsdx, raw_mermaid
+                    )
+                    diagram.raw_mermaid = raw_mermaid.relative_to(
+                        output_dir
+                    ).as_posix()
+                    if diagram.status != "unmapped":
+                        diagram.status = "mermaid_generated"
+                    diagram.warnings.append(
+                        f"Native fallback extracted {node_count} nodes and "
+                        f"{edge_count} edges."
+                    )
+                except VsdxError as fallback_exc:
+                    diagram.status = "conversion_failed"
+                    diagram.warnings.append(
+                        f"Native VSDX fallback failed: {fallback_exc}"
                     )
 
         draft_text = draft.read_text(encoding="utf-8")
@@ -96,4 +142,3 @@ def convert(
     finally:
         if work_context:
             work_context.cleanup()
-

@@ -17,6 +17,8 @@ def run_command(command: list[str], cwd: Path | None = None) -> subprocess.Compl
             command,
             cwd=cwd,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             check=False,
@@ -82,4 +84,3 @@ def run_convert2mermaid(
             f"Converter reported success but did not create {destination}",
             command_prefix,
         )
-

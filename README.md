@@ -28,8 +28,10 @@ DOCX
 
 - Python 3.10+
 - [Pandoc](https://pandoc.org/)
-- [convert2mermaid](https://github.com/) available as a command, or its Node
-  CLI path supplied explicitly
+- Optional: [convert2mermaid](https://github.com/jgreywolf/convert2mermaid)
+  available as a command, or its Node CLI path supplied explicitly. If it is
+  missing, fails, or silently loses basic graph structure, the MVP
+  automatically uses its built-in Open XML converter.
 
 All tools can be installed or copied into an offline network in advance.
 
@@ -138,6 +140,11 @@ instead of guessing when:
 - the same preview occurs more than once;
 - an external converter fails.
 
+When the external converter fails, the built-in fallback reads VSDX page,
+shape, text and connector XML with the Python standard library. It intentionally
+supports basic nodes and `BeginX`/`EndX` connections only; master inheritance,
+advanced geometry and exact styling remain outside the MVP.
+
 Headers, footers, text boxes stored outside the main document flow, linked
 rather than embedded Visio files, and visual floating-object coordinates are
 not yet mapped. Multi-page behavior is determined by the installed
@@ -152,6 +159,16 @@ does not require Pandoc or convert2mermaid:
 pip install pytest
 pytest
 ```
+
+Generate a non-confidential synthetic VSDX and a DOCX embedding that VSDX:
+
+```powershell
+python .\scripts\generate_sample.py
+```
+
+The generated flow contains two nodes and one connector. Its connector text
+uses an empty field structure that exposes a known fragile assumption in
+`vsdx-js`, while the built-in parser handles it deterministically.
 
 Or run the standard-library tests after installing a test runner in the
 offline environment.
@@ -174,4 +191,3 @@ shell command strings.
 ## License
 
 MIT
-
