@@ -1,0 +1,96 @@
+from __future__ import annotations
+
+import re
+from pathlib import Path, PurePosixPath
+
+from .models import Diagram
+
+IMAGE_RE = re.compile(
+    r"!\[(?P<alt>[^\]]*)\]\((?P<target><[^>]+>|[^)\s]+)(?:\s+[\"'][^\"']*[\"'])?\)"
+)
+
+
+def _normalise_reference(value: str) -> str:
+    value = value.strip("<>").replace("\\", "/")
+    return PurePosixPath(value).as_posix().lower()
+
+
+def _preview_suffix(preview_part: str) -> str:
+    marker = "word/media/"
+    normalised = _normalise_reference(preview_part)
+    if marker in normalised:
+        return normalised.split(marker, 1)[1]
+    return PurePosixPath(normalised).name
+
+
+def map_markdown_images(markdown: str, diagrams: list[Diagram]) -> None:
+    references = [
+        (match.group(0), match.group("target"), _normalise_reference(match.group("target")))
+        for match in IMAGE_RE.finditer(markdown)
+    ]
+    for diagram in diagrams:
+        if not diagram.preview_part:
+            continue
+        suffix = _preview_suffix(diagram.preview_part)
+        matches = [
+            (syntax, target)
+            for syntax, target, normalised in references
+            if normalised.endswith(f"/media/{suffix}")
+            or normalised.endswith(f"/{suffix}")
+            or normalised == suffix
+        ]
+        if len(matches) == 1:
+            diagram.markdown_image = matches[0][1].strip("<>")
+        elif not matches:
+            diagram.warnings.append(
+                f"Preview {diagram.preview_part} was not found in Pandoc Markdown."
+            )
+        else:
+            diagram.warnings.append(
+                f"Preview {diagram.preview_part} occurs multiple times in Pandoc Markdown."
+            )
+
+
+def _mermaid_block(diagram: Diagram, mermaid: str) -> str:
+    source_link = diagram.source_vsdx or ""
+    return (
+        f"<!-- VISIO-BEGIN: {diagram.id} -->\n"
+        "```mermaid\n"
+        f"{mermaid.rstrip()}\n"
+        "```\n\n"
+        f"[Original Visio diagram]({source_link})\n"
+        f"<!-- VISIO-END: {diagram.id} -->"
+    )
+
+
+def merge_markdown(markdown: str, diagrams: list[Diagram], output_root: Path) -> str:
+    map_markdown_images(markdown, diagrams)
+    merged = markdown
+    for diagram in diagrams:
+        if not diagram.markdown_image or not diagram.raw_mermaid:
+            if diagram.status not in {"unresolved", "conversion_failed", "unmapped"}:
+                diagram.status = "unresolved"
+            continue
+        mermaid_path = output_root / Path(diagram.raw_mermaid)
+        if not mermaid_path.is_file():
+            diagram.status = "unresolved"
+            diagram.warnings.append(f"Missing Mermaid output: {diagram.raw_mermaid}")
+            continue
+        mermaid = mermaid_path.read_text(encoding="utf-8")
+        target = _normalise_reference(diagram.markdown_image)
+        candidates = [
+            match
+            for match in IMAGE_RE.finditer(merged)
+            if _normalise_reference(match.group("target")) == target
+        ]
+        if len(candidates) != 1:
+            diagram.status = "unresolved"
+            diagram.warnings.append(
+                "Markdown image could not be replaced unambiguously."
+            )
+            continue
+        match = candidates[0]
+        merged = merged[: match.start()] + _mermaid_block(diagram, mermaid) + merged[match.end() :]
+        diagram.status = "converted"
+    return merged
+
