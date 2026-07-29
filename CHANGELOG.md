@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- Recognize Pandoc 3.10 HTML `<img>` output in addition to Markdown images.
+- Match double-quoted, single-quoted and unquoted `src` attributes.
+- Replace complete multiline `<img ... />` tags so no trailing `/>` remains.
+- Preserve surrounding captions and document text.
+
 ## 0.2.0
 
 - Add a standard-library VSDX Open XML parser for basic nodes and connectors.

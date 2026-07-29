@@ -6,8 +6,40 @@ from pathlib import Path, PurePosixPath
 from .models import Diagram
 
 IMAGE_RE = re.compile(
-    r"!\[(?P<alt>[^\]]*)\]\((?P<target><[^>]+>|[^)\s]+)(?:\s+[\"'][^\"']*[\"'])?\)"
+    r"""
+    !\[(?P<alt>[^\]]*)\]\(
+        (?P<markdown_target><[^>]+>|[^)\s]+)
+        (?:\s+["'][^"']*["'])?
+    \)
+    |
+    <img\b
+        (?=[^>]*\bsrc\s*=)
+        [^>]*?\bsrc\s*=\s*
+        (?:
+            "(?P<html_target_double>[^"]+)"
+            |
+            '(?P<html_target_single>[^']+)'
+            |
+            (?P<html_target_unquoted>[^\s"'=<>`]+)
+        )
+        [^>]*
+    >
+    """,
+    re.IGNORECASE | re.VERBOSE,
 )
+
+
+def _match_target(match: re.Match[str]) -> str:
+    for group in (
+        "markdown_target",
+        "html_target_double",
+        "html_target_single",
+        "html_target_unquoted",
+    ):
+        value = match.group(group)
+        if value is not None:
+            return value.strip("<>")
+    raise ValueError("Image match contains no target.")
 
 
 def _normalise_reference(value: str) -> str:
@@ -25,7 +57,11 @@ def _preview_suffix(preview_part: str) -> str:
 
 def map_markdown_images(markdown: str, diagrams: list[Diagram]) -> None:
     references = [
-        (match.group(0), match.group("target"), _normalise_reference(match.group("target")))
+        (
+            match.group(0),
+            _match_target(match),
+            _normalise_reference(_match_target(match)),
+        )
         for match in IMAGE_RE.finditer(markdown)
     ]
     for diagram in diagrams:
@@ -81,7 +117,7 @@ def merge_markdown(markdown: str, diagrams: list[Diagram], output_root: Path) ->
         candidates = [
             match
             for match in IMAGE_RE.finditer(merged)
-            if _normalise_reference(match.group("target")) == target
+            if _normalise_reference(_match_target(match)) == target
         ]
         if len(candidates) != 1:
             diagram.status = "unresolved"
@@ -90,7 +126,10 @@ def merge_markdown(markdown: str, diagrams: list[Diagram], output_root: Path) ->
             )
             continue
         match = candidates[0]
-        merged = merged[: match.start()] + _mermaid_block(diagram, mermaid) + merged[match.end() :]
+        merged = (
+            merged[: match.start()]
+            + _mermaid_block(diagram, mermaid)
+            + merged[match.end() :]
+        )
         diagram.status = "converted"
     return merged
-

@@ -127,7 +127,10 @@ paragraph 28
 ```
 
 Pandoc's Markdown reference ending in `media/image5.emf` can then be replaced
-without relying on file ordering or AI inference.
+without relying on file ordering or AI inference. Pandoc 3.10 may emit a
+multiline HTML `<img src="...">` element for media carrying size/style
+attributes; the matcher supports both that representation and normal
+`![alt](src)` Markdown.
 
 ## Current scope and limitations
 

@@ -48,7 +48,7 @@ out = pathlib.Path(next(a.split("=",1)[1] for a in sys.argv if a.startswith("--o
 media = pathlib.Path(next(a.split("=",1)[1] for a in sys.argv if a.startswith("--extract-media=")))
 (media/"media").mkdir(parents=True, exist_ok=True)
 (media/"media"/"image1.png").write_bytes(b"preview")
-out.write_text("Before\\n\\n![](assets/media/image1.png)\\n\\nAfter\\n", encoding="utf-8")
+out.write_text('Before\\n\\n<img src="assets/media/image1.png"\\n style="width:4in" />\\n\\nAfter\\n', encoding="utf-8")
 """,
         encoding="utf-8",
     )
