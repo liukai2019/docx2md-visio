@@ -30,6 +30,7 @@ def write_report(manifest: Manifest, path: Path) -> None:
         "",
         f"- Source: `{manifest.source_document}`",
         f"- Markdown: `{manifest.output_markdown}`",
+        f"- AI reference Markdown: `{manifest.ai_reference_markdown or 'not generated'}`",
         f"- Diagrams found: {len(manifest.diagrams)}",
         f"- Diagrams converted: {converted}",
         f"- Diagrams requiring review: {review_required}",

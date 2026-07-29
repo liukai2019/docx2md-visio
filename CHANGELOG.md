@@ -45,3 +45,11 @@
 - Initial deterministic DOCX relationship mapping, Pandoc conversion,
   VSDX extraction, convert2mermaid invocation, Markdown merge, manifest and
   conversion report.
+# 0.4.0
+
+- Add a deterministic Markdown correction CLI and JSON/Markdown reports.
+- Add the repository-local `correct-docx-markdown` Claude Code skill.
+- Add optional MarkItDown `.ai.md` generation as a non-canonical comparison.
+- Add offline deployment documentation and a PowerShell bundle builder.
+- Preserve strict separation between document correction and reviewed Mermaid
+  application.

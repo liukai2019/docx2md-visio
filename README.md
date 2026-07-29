@@ -106,6 +106,10 @@ output/
             └── converter.log  # only when the converter fails with output
 ```
 
+When optional MarkItDown comparison is enabled, the output also contains
+`design.ai.md`. It is an AI-oriented reference only; `design.md` remains the
+canonical result.
+
 Each successfully mapped Pandoc image is replaced with:
 
 ````markdown
@@ -270,6 +274,51 @@ The apply command:
 
 Repeat Stages 2 and 3 for each diagram that a human approves. Unapproved
 diagrams continue to display their original Pandoc preview.
+
+## Markdown correction skill
+
+The repository includes a Claude Code project skill at
+`.claude/skills/correct-docx-markdown/`. It combines a deterministic audit with
+strict review guardrails.
+
+Run the audit without AI:
+
+```powershell
+docx2md-visio-correct .\output\design.md --write --fail-on never
+```
+
+With an optional MarkItDown second opinion:
+
+```powershell
+docx2md-visio .\documents\design.docx -o .\output `
+  --markitdown markitdown
+
+docx2md-visio-correct .\output\design.md `
+  --reference .\output\design.ai.md `
+  --write --fail-on never
+```
+
+The command writes `correction-report.json` and `correction-report.md`.
+Automatic changes are limited to newline normalization, BOM removal, final
+newline normalization, and collapsing excessive blank lines outside fenced
+code. Potentially semantic changes—including Pandoc backslash escapes,
+headings, tables, missing images, and orphaned HTML—are only reported.
+
+Start Claude Code in the repository root and ask:
+
+```text
+Use $correct-docx-markdown to audit output/design.md.
+```
+
+Claude must use MarkItDown only as supporting evidence and must not edit
+reviewed Mermaid blocks through the document correction workflow.
+
+## Complete offline deployment
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the supported topology,
+bundle creation, isolated-network installation, Claude Code operation, and
+acceptance checks. `scripts/New-OfflineBundle.ps1` can package the repository
+with optional Pandoc, Node, convert2mermaid, and wheelhouse directories.
 
 Headers, footers, text boxes stored outside the main document flow, linked
 rather than embedded Visio files, and visual floating-object coordinates are

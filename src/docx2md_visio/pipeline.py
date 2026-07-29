@@ -9,7 +9,13 @@ from .context import write_review_inputs
 from .markdown import map_markdown_images, merge_markdown
 from .models import Manifest
 from .report import write_manifest, write_report
-from .tools import ToolError, run_convert2mermaid, run_pandoc, tool_version
+from .tools import (
+    ToolError,
+    run_convert2mermaid,
+    run_markitdown,
+    run_pandoc,
+    tool_version,
+)
 from .vsdx import VsdxError, assess_vsdx, convert_vsdx, mermaid_structure_counts
 
 
@@ -22,6 +28,7 @@ def convert(
     output_dir: Path,
     pandoc: str = "pandoc",
     converter_command: list[str] | None = None,
+    markitdown_command: list[str] | None = None,
     keep_work: bool = False,
 ) -> Manifest:
     source = source.resolve()
@@ -62,6 +69,16 @@ def convert(
                 "convert2mermaid": tool_version(converter_command),
             },
         )
+        if markitdown_command:
+            ai_reference = output_dir / f"{source.stem}.ai.md"
+            try:
+                run_markitdown(markitdown_command, source, ai_reference)
+                manifest.ai_reference_markdown = ai_reference.name
+                manifest.tool_versions["markitdown"] = tool_version(markitdown_command)
+            except ToolError as exc:
+                manifest.warnings.append(
+                    f"Optional MarkItDown reference conversion failed: {exc}"
+                )
         extract_visio_files(package_root, diagrams, output_dir)
 
         draft = work_root / "draft.md"

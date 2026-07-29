@@ -27,6 +27,7 @@ class Diagram:
 class Manifest:
     source_document: str
     output_markdown: str
+    ai_reference_markdown: str | None = None
     diagrams: list[Diagram] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     tool_versions: dict[str, str] = field(default_factory=dict)
@@ -36,6 +37,7 @@ class Manifest:
             "schema_version": 1,
             "source_document": self.source_document,
             "output_markdown": self.output_markdown,
+            "ai_reference_markdown": self.ai_reference_markdown,
             "diagrams": [diagram.to_dict() for diagram in self.diagrams],
             "warnings": self.warnings,
             "tool_versions": self.tool_versions,
@@ -44,4 +46,3 @@ class Manifest:
 
 def relative_posix(path: Path, base: Path) -> str:
     return path.resolve().relative_to(base.resolve()).as_posix()
-

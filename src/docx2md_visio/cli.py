@@ -34,6 +34,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Keep unpacked DOCX and draft Markdown under the output directory",
     )
+    parser.add_argument(
+        "--markitdown",
+        action="append",
+        dest="markitdown_command",
+        metavar="ARG",
+        help=(
+            "Optional MarkItDown command token; repeat for prefixes such as "
+            "--markitdown python --markitdown -m --markitdown markitdown."
+        ),
+    )
     return parser
 
 
@@ -45,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
             args.output_dir,
             pandoc=args.pandoc,
             converter_command=args.converter_command,
+            markitdown_command=args.markitdown_command,
             keep_work=args.keep_work,
         )
     except PipelineError as exc:
@@ -60,4 +71,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

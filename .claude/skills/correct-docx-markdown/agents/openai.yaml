@@ -1,0 +1,4 @@
+interface:
+  display_name: "Correct DOCX Markdown"
+  short_description: "Audit and safely correct converted DOCX Markdown"
+  default_prompt: "Use $correct-docx-markdown to audit and safely correct this converted DOCX Markdown."

@@ -85,3 +85,15 @@ def run_convert2mermaid(
             f"Converter reported success but did not create {destination}",
             command_prefix,
         )
+
+
+def run_markitdown(
+    command_prefix: list[str], source: Path, destination: Path
+) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    run_command([*command_prefix, str(source), "-o", str(destination)])
+    if not destination.is_file():
+        raise ToolError(
+            f"MarkItDown reported success but did not create {destination}",
+            command_prefix,
+        )
