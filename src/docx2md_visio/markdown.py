@@ -100,7 +100,13 @@ def _mermaid_block(diagram: Diagram, mermaid: str) -> str:
 
 
 def merge_markdown(markdown: str, diagrams: list[Diagram], output_root: Path) -> str:
-    map_markdown_images(markdown, diagrams)
+    unmapped = [
+        diagram
+        for diagram in diagrams
+        if diagram.preview_part and not diagram.markdown_image
+    ]
+    if unmapped:
+        map_markdown_images(markdown, unmapped)
     merged = markdown
     for diagram in diagrams:
         if diagram.status == "review_required":

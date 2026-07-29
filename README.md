@@ -100,6 +100,9 @@ output/
         └── diagram-001/
             ├── source.vsdx
             ├── raw.mmd
+            ├── context.md
+            ├── review-prompt.md
+            ├── final.mmd       # created by optional review stage
             └── converter.log  # only when the converter fails with output
 ```
 
@@ -164,6 +167,109 @@ The draft remains at `assets/visio/diagram-NNN/raw.mmd`, and the reason is
 recorded in both `manifest.json` and `conversion-report.md`. This policy avoids
 presenting a flattened flowchart as an accurate conversion of a signaling,
 sequence, UML, or other structurally complex Visio diagram.
+
+## Three-stage offline review workflow
+
+The deterministic converter, Claude review and final Markdown application are
+separate stages. Claude never edits the document Markdown directly.
+
+### Stage 1: deterministic conversion and context generation
+
+```powershell
+python -m docx2md_visio `
+  .\documents\design.docx `
+  -o .\output `
+  --converter node `
+  --converter .\tools\convert2mermaid\dist\cli.js
+```
+
+If convert2mermaid is unavailable, omit both `--converter` arguments. The
+built-in Open XML fallback will run after the default command cannot be found.
+
+For each mapped diagram, Stage 1 now creates:
+
+```text
+output/assets/visio/diagram-001/
+├── source.vsdx
+├── raw.mmd
+├── context.md
+└── review-prompt.md
+```
+
+`context.md` is generated deterministically from Pandoc's draft Markdown. It
+contains the nearest preceding heading and bounded text before and after the
+preview. It remains inside the offline output directory and may contain
+document content, so apply the same confidentiality controls as the source
+DOCX.
+
+### Stage 2: let Claude create a candidate final.mmd
+
+Process one `review_required` diagram at a time. Open PowerShell in that
+diagram's directory:
+
+```powershell
+Set-Location .\output\assets\visio\diagram-001
+
+$reviewInput = @"
+$(Get-Content .\review-prompt.md -Raw)
+
+## context.md
+$(Get-Content .\context.md -Raw)
+
+## raw.mmd
+$(Get-Content .\raw.mmd -Raw)
+"@
+
+$candidate = $reviewInput | claude -p --max-turns 2
+$candidate | Set-Content .\final.mmd -Encoding utf8
+```
+
+Inspect `final.mmd` manually. It must contain plain Mermaid source beginning
+with a declaration such as `sequenceDiagram` or `flowchart TD`. It must not
+contain triple-backtick Markdown fences or explanatory prose. If Claude cannot
+establish participant names or connections from the supplied evidence, keep
+the original preview and do not run Stage 3.
+
+For a signaling diagram, a candidate may look like:
+
+```text
+sequenceDiagram
+    participant P117 as Participant n117
+    participant P122 as Participant n122
+    P117->>P122: INVITE F1
+    P122->>P117: 100 Trying F2
+```
+
+### Stage 3: apply one human-approved final.mmd
+
+After comparing `final.mmd` with the original preview:
+
+```powershell
+python -m docx2md_visio.apply_review `
+  .\output `
+  --diagram diagram-001 `
+  --approve
+```
+
+The installed console command is equivalent:
+
+```powershell
+docx2md-visio-apply .\output --diagram diagram-001 --approve
+```
+
+The apply command:
+
+- requires the explicit `--approve` flag;
+- validates the Mermaid declaration;
+- rejects Markdown code fences and empty output;
+- uses `manifest.json` to replace the exact preview;
+- wraps `final.mmd` in a Markdown Mermaid code block;
+- retains a link to `source.vsdx`;
+- creates `<document>.md.pre-review` before the first reviewed replacement;
+- records `converted_after_review` and `final_mermaid` in `manifest.json`.
+
+Repeat Stages 2 and 3 for each diagram that a human approves. Unapproved
+diagrams continue to display their original Pandoc preview.
 
 Headers, footers, text boxes stored outside the main document flow, linked
 rather than embedded Visio files, and visual floating-object coordinates are

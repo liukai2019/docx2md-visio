@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docx2md-visio"
-version = "0.2.2"
+version = "0.3.0"
 description = "Deterministically convert DOCX files with embedded Visio diagrams to Markdown and Mermaid."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,6 +23,7 @@ dependencies = []
 
 [project.scripts]
 docx2md-visio = "docx2md_visio.cli:main"
+docx2md-visio-apply = "docx2md_visio.apply_review:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

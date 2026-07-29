@@ -5,7 +5,8 @@ import tempfile
 from pathlib import Path
 
 from .docx import extract_visio_files, inspect_document, safe_extract_docx
-from .markdown import merge_markdown
+from .context import write_review_inputs
+from .markdown import map_markdown_images, merge_markdown
 from .models import Manifest
 from .report import write_manifest, write_report
 from .tools import ToolError, run_convert2mermaid, run_pandoc, tool_version
@@ -155,6 +156,9 @@ def convert(
                     )
 
         draft_text = draft.read_text(encoding="utf-8")
+        # Resolve preview references before writing per-diagram review context.
+        map_markdown_images(draft_text, diagrams)
+        write_review_inputs(draft_text, diagrams, output_dir)
         merged = merge_markdown(draft_text, diagrams, output_dir)
         output_markdown.write_text(merged, encoding="utf-8")
         write_manifest(manifest, output_dir / "manifest.json")

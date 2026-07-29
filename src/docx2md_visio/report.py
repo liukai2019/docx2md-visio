@@ -14,7 +14,10 @@ def write_manifest(manifest: Manifest, path: Path) -> None:
 
 
 def write_report(manifest: Manifest, path: Path) -> None:
-    converted = sum(d.status == "converted" for d in manifest.diagrams)
+    converted = sum(
+        d.status in {"converted", "converted_after_review"}
+        for d in manifest.diagrams
+    )
     review_required = sum(
         d.status == "review_required" for d in manifest.diagrams
     )

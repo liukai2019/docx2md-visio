@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0
+
+- Generate `context.md` for every unambiguously mapped diagram using the
+  nearest heading and bounded text before and after its preview.
+- Generate a constrained `review-prompt.md` for offline Claude CLI review.
+- Add `docx2md-visio-apply` and `python -m docx2md_visio.apply_review` for
+  applying one explicitly approved `final.mmd`.
+- Validate reviewed Mermaid and reject code fences, empty output and unknown
+  diagram declarations.
+- Preserve the pre-review document as `<document>.md.pre-review`.
+- Record `final_mermaid` and `converted_after_review` in the manifest.
+
 ## 0.2.2
 
 - Preserve the original preview when native VSDX conversion is low-confidence.

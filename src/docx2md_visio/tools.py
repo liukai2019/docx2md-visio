@@ -58,9 +58,10 @@ def run_pandoc(
             "--from=docx",
             "--to=gfm",
             "--wrap=none",
-            f"--extract-media={media_root}",
+            f"--extract-media={media_root.name}",
             f"--output={draft_markdown}",
-        ]
+        ],
+        cwd=media_root.parent,
     )
 
 

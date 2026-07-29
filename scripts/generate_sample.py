@@ -179,8 +179,16 @@ def main() -> None:
     vsdx_path = output / "synthetic-flow.vsdx"
     docx_path = output / "synthetic-word-with-visio.docx"
     write_docx(docx_path, write_vsdx(vsdx_path))
+    complex_vsdx_path = output / "synthetic-complex.vsdx"
+    complex_docx_path = output / "synthetic-word-with-complex-visio.docx"
+    write_docx(
+        complex_docx_path,
+        write_complex_vsdx(complex_vsdx_path),
+    )
     print(vsdx_path)
     print(docx_path)
+    print(complex_vsdx_path)
+    print(complex_docx_path)
 
 
 if __name__ == "__main__":

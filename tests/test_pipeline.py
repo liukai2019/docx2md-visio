@@ -76,4 +76,7 @@ out.write_text("flowchart LR\\n  A --> B\\n", encoding="utf-8")
     assert "A --> B" in markdown
     assert manifest.diagrams[0].status == "converted"
     assert saved["diagrams"][0]["paragraph_index"] == 1
+    assert saved["diagrams"][0]["markdown_image"] == "assets/media/image1.png"
     assert (output / "conversion-report.md").is_file()
+    assert (output / "assets/visio/diagram-001/context.md").is_file()
+    assert (output / "assets/visio/diagram-001/review-prompt.md").is_file()
