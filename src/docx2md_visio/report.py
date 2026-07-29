@@ -15,6 +15,13 @@ def write_manifest(manifest: Manifest, path: Path) -> None:
 
 def write_report(manifest: Manifest, path: Path) -> None:
     converted = sum(d.status == "converted" for d in manifest.diagrams)
+    review_required = sum(
+        d.status == "review_required" for d in manifest.diagrams
+    )
+    unresolved = sum(
+        d.status not in {"converted", "review_required"}
+        for d in manifest.diagrams
+    )
     lines = [
         "# Conversion report",
         "",
@@ -22,7 +29,8 @@ def write_report(manifest: Manifest, path: Path) -> None:
         f"- Markdown: `{manifest.output_markdown}`",
         f"- Diagrams found: {len(manifest.diagrams)}",
         f"- Diagrams converted: {converted}",
-        f"- Diagrams unresolved: {len(manifest.diagrams) - converted}",
+        f"- Diagrams requiring review: {review_required}",
+        f"- Diagrams unresolved: {unresolved}",
         "",
         "## Diagrams",
         "",
@@ -47,4 +55,3 @@ def write_report(manifest: Manifest, path: Path) -> None:
         lines.extend(["", "## Pipeline warnings", ""])
         lines.extend(f"- {warning}" for warning in manifest.warnings)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-

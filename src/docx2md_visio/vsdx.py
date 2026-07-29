@@ -27,6 +27,20 @@ class VsdxPage:
     shapes: list[VsdxShape] = field(default_factory=list)
 
 
+@dataclass
+class VsdxAssessment:
+    node_count: int
+    edge_count: int
+    unlabeled_node_count: int
+    unresolved_edge_count: int
+    page_count: int
+    risks: list[str] = field(default_factory=list)
+
+    @property
+    def auto_replace_safe(self) -> bool:
+        return not self.risks
+
+
 def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
@@ -211,6 +225,45 @@ def convert_vsdx(path: Path, destination: Path) -> tuple[int, int]:
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(pages_to_mermaid(pages), encoding="utf-8")
     return node_count, edge_count
+
+
+def assess_vsdx(path: Path) -> VsdxAssessment:
+    """Conservatively decide whether basic native output may replace a preview."""
+    pages = parse_vsdx(path)
+    nodes = [
+        shape for page in pages for shape in page.shapes if not shape.is_edge
+    ]
+    edges = [shape for page in pages for shape in page.shapes if shape.is_edge]
+    node_ids = {shape.id for shape in nodes}
+    unlabeled = sum(not shape.label for shape in nodes)
+    unresolved_edges = sum(
+        not edge.from_id
+        or not edge.to_id
+        or edge.from_id not in node_ids
+        or edge.to_id not in node_ids
+        for edge in edges
+    )
+    risks: list[str] = []
+    if len(pages) > 1:
+        risks.append(f"contains {len(pages)} pages")
+    if len(nodes) > 10:
+        risks.append(f"contains {len(nodes)} nodes, above the safe basic limit of 10")
+    if nodes and unlabeled / len(nodes) > 0.25:
+        risks.append(
+            f"{unlabeled}/{len(nodes)} nodes have no directly readable label"
+        )
+    if unresolved_edges:
+        risks.append(
+            f"{unresolved_edges}/{len(edges)} connectors have unresolved endpoints"
+        )
+    return VsdxAssessment(
+        node_count=len(nodes),
+        edge_count=len(edges),
+        unlabeled_node_count=unlabeled,
+        unresolved_edge_count=unresolved_edges,
+        page_count=len(pages),
+        risks=risks,
+    )
 
 
 def mermaid_structure_counts(source: str) -> tuple[int, int]:

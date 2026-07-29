@@ -21,6 +21,8 @@ DOCX
 - Word relationship IDs determine the VSDX/preview mapping.
 - Ambiguous or missing mappings are reported rather than guessed.
 - A failed diagram conversion leaves the original Pandoc image in Markdown.
+- A low-confidence native conversion is saved as a draft but does not replace
+  the original preview.
 - The final output retains links to the original extracted VSDX files.
 - The runtime has no Python package dependencies.
 
@@ -147,6 +149,21 @@ When the external converter fails, the built-in fallback reads VSDX page,
 shape, text and connector XML with the Python standard library. It intentionally
 supports basic nodes and `BeginX`/`EndX` connections only; master inheritance,
 advanced geometry and exact styling remain outside the MVP.
+
+### Conservative replacement policy
+
+Native output is marked `review_required` instead of replacing the preview
+when any of these conditions apply:
+
+- more than one Visio page;
+- more than 10 basic nodes;
+- more than 25% of nodes have no directly readable label;
+- one or more connector endpoints cannot be resolved.
+
+The draft remains at `assets/visio/diagram-NNN/raw.mmd`, and the reason is
+recorded in both `manifest.json` and `conversion-report.md`. This policy avoids
+presenting a flattened flowchart as an accurate conversion of a signaling,
+sequence, UML, or other structurally complex Visio diagram.
 
 Headers, footers, text boxes stored outside the main document flow, linked
 rather than embedded Visio files, and visual floating-object coordinates are

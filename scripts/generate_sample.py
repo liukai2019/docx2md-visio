@@ -132,6 +132,32 @@ def write_vsdx(path: Path) -> bytes:
     return path.read_bytes()
 
 
+def write_complex_vsdx(path: Path, node_count: int = 12) -> bytes:
+    shapes = "\n".join(
+        (
+            f'  <Shape ID="{index}" NameU="Process">'
+            f'<Cell N="PinX" V="{index}"/><Cell N="PinY" V="4"/>'
+            f"<Text>Signal element {index}</Text></Shape>"
+        )
+        for index in range(1, node_count + 1)
+    )
+    page = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<PageContents xmlns="http://schemas.microsoft.com/office/visio/2012/main">\n'
+        f" <Shapes>\n{shapes}\n </Shapes>\n"
+        "</PageContents>\n"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", CONTENT_TYPES)
+        archive.writestr("_rels/.rels", ROOT_RELS)
+        archive.writestr("visio/document.xml", VISIO_DOCUMENT)
+        archive.writestr("visio/pages/pages.xml", PAGES)
+        archive.writestr("visio/pages/_rels/pages.xml.rels", PAGES_RELS)
+        archive.writestr("visio/pages/page1.xml", page)
+    return path.read_bytes()
+
+
 def write_docx(path: Path, vsdx: bytes) -> None:
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("[Content_Types].xml", DOCX_CONTENT_TYPES)
@@ -159,4 +185,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

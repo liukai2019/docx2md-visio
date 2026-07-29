@@ -4,6 +4,7 @@ import runpy
 from pathlib import Path
 
 from docx2md_visio.vsdx import (
+    assess_vsdx,
     convert_vsdx,
     mermaid_structure_counts,
     parse_vsdx,
@@ -54,3 +55,14 @@ def test_mermaid_structure_counts_detects_missing_edge() -> None:
     assert mermaid_structure_counts(
         'flowchart TD\nn01["Receive request"]\nn02["Return response"]\nn01 --> n02\n'
     ) == (2, 1)
+
+
+def test_complex_native_diagram_requires_review(tmp_path: Path) -> None:
+    sample = tmp_path / "complex.vsdx"
+    _generator_module()["write_complex_vsdx"](sample, 12)
+
+    assessment = assess_vsdx(sample)
+
+    assert assessment.node_count == 12
+    assert not assessment.auto_replace_safe
+    assert any("safe basic limit" in risk for risk in assessment.risks)

@@ -118,3 +118,29 @@ def test_merge_supports_single_quoted_and_unquoted_html_src(
         assert "<img" not in result.lower()
         assert "```mermaid" in result
         assert diagram.status == "converted"
+
+
+def test_review_required_preserves_original_preview(tmp_path: Path) -> None:
+    diagram_dir = tmp_path / "assets/visio/diagram-001"
+    diagram_dir.mkdir(parents=True)
+    (diagram_dir / "raw.mmd").write_text(
+        "flowchart TD\n  n1 --> n2\n", encoding="utf-8"
+    )
+    diagram = Diagram(
+        id="diagram-001",
+        document_part="word/document.xml",
+        document_order=0,
+        paragraph_index=1,
+        preview_part="word/media/image1.emf",
+        embedding_part="word/embeddings/diagram.vsdx",
+        source_vsdx="assets/visio/diagram-001/source.vsdx",
+        raw_mermaid="assets/visio/diagram-001/raw.mmd",
+        status="review_required",
+    )
+    markdown = '<img src="assets/media/image1.emf" style="width:6in" />'
+
+    result = merge_markdown(markdown, [diagram], tmp_path)
+
+    assert result == markdown
+    assert diagram.markdown_image == "assets/media/image1.emf"
+    assert diagram.status == "review_required"

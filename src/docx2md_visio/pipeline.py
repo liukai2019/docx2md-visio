@@ -9,7 +9,7 @@ from .markdown import merge_markdown
 from .models import Manifest
 from .report import write_manifest, write_report
 from .tools import ToolError, run_convert2mermaid, run_pandoc, tool_version
-from .vsdx import VsdxError, convert_vsdx, mermaid_structure_counts
+from .vsdx import VsdxError, assess_vsdx, convert_vsdx, mermaid_structure_counts
 
 
 class PipelineError(RuntimeError):
@@ -93,12 +93,21 @@ def convert(
                         or external_edges < native_edges
                     ):
                         shutil.move(native_candidate, raw_mermaid)
+                        assessment = assess_vsdx(source_vsdx)
                         diagram.warnings.append(
                             "External convert2mermaid output was structurally "
                             f"incomplete ({external_nodes} nodes/{external_edges} "
                             f"edges versus {native_nodes}/{native_edges}); used "
                             "native Open XML output."
                         )
+                        if not assessment.auto_replace_safe:
+                            diagram.status = "review_required"
+                            diagram.warnings.append(
+                                "Native Mermaid was kept as a draft and the "
+                                "original preview was preserved: "
+                                + "; ".join(assessment.risks)
+                                + "."
+                            )
                     else:
                         native_candidate.unlink(missing_ok=True)
                 except VsdxError as validation_exc:
@@ -127,6 +136,18 @@ def convert(
                         f"Native fallback extracted {node_count} nodes and "
                         f"{edge_count} edges."
                     )
+                    assessment = assess_vsdx(source_vsdx)
+                    if (
+                        diagram.status != "unmapped"
+                        and not assessment.auto_replace_safe
+                    ):
+                        diagram.status = "review_required"
+                        diagram.warnings.append(
+                            "Native Mermaid was kept as a draft and the "
+                            "original preview was preserved: "
+                            + "; ".join(assessment.risks)
+                            + "."
+                        )
                 except VsdxError as fallback_exc:
                     diagram.status = "conversion_failed"
                     diagram.warnings.append(

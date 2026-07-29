@@ -103,6 +103,8 @@ def merge_markdown(markdown: str, diagrams: list[Diagram], output_root: Path) ->
     map_markdown_images(markdown, diagrams)
     merged = markdown
     for diagram in diagrams:
+        if diagram.status == "review_required":
+            continue
         if not diagram.markdown_image or not diagram.raw_mermaid:
             if diagram.status not in {"unresolved", "conversion_failed", "unmapped"}:
                 diagram.status = "unresolved"
