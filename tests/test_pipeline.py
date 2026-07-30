@@ -73,10 +73,15 @@ out.write_text("flowchart LR\\n  A --> B\\n", encoding="utf-8")
     markdown = (output / "sample.md").read_text(encoding="utf-8")
     saved = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
     assert "```mermaid" in markdown
-    assert "A --> B" in markdown
+    assert "Receive request" in markdown
+    assert "n1 --> n2" in markdown
     assert manifest.diagrams[0].status == "converted"
     assert saved["diagrams"][0]["paragraph_index"] == 1
     assert saved["diagrams"][0]["markdown_image"] == "assets/media/image1.png"
     assert (output / "conversion-report.md").is_file()
     assert (output / "assets/visio/diagram-001/context.md").is_file()
     assert (output / "assets/visio/diagram-001/review-prompt.md").is_file()
+    assert (output / "assets/visio/diagram-001/diagram.json").is_file()
+    assert (output / "assets/visio/diagram-001/diagnostic.svg").is_file()
+    assert (output / "assets/visio/diagram-001/geometry-summary.md").is_file()
+    assert saved["diagrams"][0]["geometry_json"].endswith("diagram.json")

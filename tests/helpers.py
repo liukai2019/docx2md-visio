@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import runpy
 import zipfile
 from pathlib import Path
 
@@ -44,12 +45,18 @@ CONTENT_TYPES = """<?xml version="1.0" encoding="UTF-8"?>
 
 
 def make_docx(path: Path) -> None:
+    generator = runpy.run_path(
+        str(Path(__file__).parents[1] / "scripts" / "generate_sample.py"),
+        run_name="sample_generator_for_tests",
+    )
+    embedded_path = path.with_suffix(".embedded.vsdx")
+    embedded_vsdx = generator["write_vsdx"](embedded_path)
+    embedded_path.unlink()
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr("[Content_Types].xml", CONTENT_TYPES)
         archive.writestr("word/document.xml", DOCUMENT_XML)
         archive.writestr("word/_rels/document.xml.rels", RELS_XML)
         archive.writestr("word/media/image1.png", b"preview")
         archive.writestr(
-            "word/embeddings/Microsoft_Visio_1.vsdx", b"PK fake-vsdx"
+            "word/embeddings/Microsoft_Visio_1.vsdx", embedded_vsdx
         )
-

@@ -100,6 +100,9 @@ output/
         └── diagram-001/
             ├── source.vsdx
             ├── raw.mmd
+            ├── diagram.json
+            ├── geometry-summary.md
+            ├── diagnostic.svg
             ├── context.md
             ├── review-prompt.md
             ├── final.mmd       # created by optional review stage
@@ -152,10 +155,26 @@ instead of guessing when:
 - the same preview occurs more than once;
 - an external converter fails.
 
-When the external converter fails, the built-in fallback reads VSDX page,
-shape, text and connector XML with the Python standard library. It intentionally
-supports basic nodes and `BeginX`/`EndX` connections only; master inheritance,
-advanced geometry and exact styling remain outside the MVP.
+The built-in parser reads VSDX page, shape, text, box geometry, line endpoints,
+parent IDs and connector XML with the Python standard library. The geometry
+layer is domain-neutral: it reports visual facts and generic spatial
+relationships but does not claim that geometric containment proves protocol or
+business membership. Master inheritance, nested group coordinate transforms,
+advanced geometry paths and exact styling remain outside the current scope.
+
+### Geometry evidence
+
+For every parseable VSDX, Stage 1 creates:
+
+- `diagram.json`: complete extracted L1 geometry facts and derived relations;
+- `geometry-summary.md`: compact labeled shapes, lines and high-confidence
+  relations for a smaller-model review;
+- `diagnostic.svg`: a visual box/line overlay labeled with source Shape IDs.
+
+`spatially_inside` means at least 90% of a shape or sampled line lies within
+another shape's bounding box. `spatially_overlaps` means at least 20%. These
+relations use geometry only and must not be promoted to domain semantics
+without supporting evidence.
 
 ### Conservative replacement policy
 
@@ -196,6 +215,9 @@ For each mapped diagram, Stage 1 now creates:
 output/assets/visio/diagram-001/
 ├── source.vsdx
 ├── raw.mmd
+├── diagram.json
+├── geometry-summary.md
+├── diagnostic.svg
 ├── context.md
 └── review-prompt.md
 ```
@@ -217,6 +239,9 @@ Set-Location .\output\assets\visio\diagram-001
 $reviewInput = @"
 $(Get-Content .\review-prompt.md -Raw)
 
+## geometry-summary.md
+$(Get-Content .\geometry-summary.md -Raw)
+
 ## context.md
 $(Get-Content .\context.md -Raw)
 
@@ -233,6 +258,11 @@ with a declaration such as `sequenceDiagram` or `flowchart TD`. It must not
 contain triple-backtick Markdown fences or explanatory prose. If Claude cannot
 establish participant names or connections from the supplied evidence, keep
 the original preview and do not run Stage 3.
+
+If `geometry-summary.md` contains a labeled frame or grouping that does not
+appear in `final.mmd`, treat the candidate as incomplete unless
+`review-notes.md` explains a Mermaid representation limitation. Consult
+`diagram.json` and `diagnostic.svg` when the compact summary is ambiguous.
 
 For a signaling diagram, a candidate may look like:
 
@@ -357,8 +387,8 @@ shell command strings.
 ## Roadmap
 
 - Parse headers, footers and additional document parts.
-- Add VSDX page inspection and multi-page output.
-- Introduce a stable intermediate `graph.json`.
+- Resolve Master-inherited geometry and nested Group coordinate transforms.
+- Add exact Geometry-section paths and richer multi-page diagnostics.
 - Add optional Mermaid syntax validation.
 - Add an optional, separate AI review layer.
 - Package the CLI behind a Claude Code or Codex skill.

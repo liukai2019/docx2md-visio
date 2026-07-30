@@ -84,7 +84,8 @@ Use $correct-docx-markdown to audit output/design.md. Do not invent technical
 content and leave ambiguous findings for human review.
 ```
 
-Mermaid review remains separate: Stage 1 creates `context.md`, `raw.mmd`, and
+Mermaid review remains separate: Stage 1 creates `context.md`, `raw.mmd`,
+`diagram.json`, `geometry-summary.md`, `diagnostic.svg`, and
 `review-prompt.md`; Stage 2 creates `final.mmd`; Stage 3 applies it only after
 explicit human approval.
 

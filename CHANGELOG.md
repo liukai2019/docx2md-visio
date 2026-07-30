@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.5.0
+
+- Add a domain-neutral VSDX geometry intermediate representation in
+  `diagram.json`.
+- Extract shape text, names, order, parent IDs, box geometry, line endpoints,
+  page size, and connector endpoints.
+- Infer generic `spatially_inside` and `spatially_overlaps` relations with
+  explicit geometric evidence and confidence.
+- Generate `geometry-summary.md` for token-efficient offline Claude review and
+  `diagnostic.svg` for visual inspection.
+- Require Stage 2 to account for labeled two-dimensional shapes instead of
+  discarding disconnected frames as noise.
+- Add non-confidential spatial-frame VSDX/DOCX samples and geometry regression
+  tests.
+
+## 0.4.0
+
+- Add a deterministic Markdown correction CLI and JSON/Markdown reports.
+- Add the repository-local `correct-docx-markdown` Claude Code skill.
+- Add optional MarkItDown `.ai.md` generation as a non-canonical comparison.
+- Add offline deployment documentation and a PowerShell bundle builder.
+- Preserve strict separation between document correction and reviewed Mermaid
+  application.
+
 ## 0.3.0
 
 - Generate `context.md` for every unambiguously mapped diagram using the
@@ -45,11 +69,3 @@
 - Initial deterministic DOCX relationship mapping, Pandoc conversion,
   VSDX extraction, convert2mermaid invocation, Markdown merge, manifest and
   conversion report.
-# 0.4.0
-
-- Add a deterministic Markdown correction CLI and JSON/Markdown reports.
-- Add the repository-local `correct-docx-markdown` Claude Code skill.
-- Add optional MarkItDown `.ai.md` generation as a non-canonical comparison.
-- Add offline deployment documentation and a PowerShell bundle builder.
-- Preserve strict separation between document correction and reviewed Mermaid
-  application.

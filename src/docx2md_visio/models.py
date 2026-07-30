@@ -15,6 +15,9 @@ class Diagram:
     embedding_part: str | None
     source_vsdx: str | None = None
     raw_mermaid: str | None = None
+    geometry_json: str | None = None
+    geometry_summary: str | None = None
+    diagnostic_svg: str | None = None
     markdown_image: str | None = None
     status: str = "discovered"
     warnings: list[str] = field(default_factory=list)
@@ -34,7 +37,7 @@ class Manifest:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "source_document": self.source_document,
             "output_markdown": self.output_markdown,
             "ai_reference_markdown": self.ai_reference_markdown,

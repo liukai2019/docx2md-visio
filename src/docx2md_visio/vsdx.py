@@ -15,9 +15,33 @@ class VsdxError(RuntimeError):
 class VsdxShape:
     id: str
     label: str
+    name: str = ""
+    parent_id: str | None = None
+    order: int = 0
     is_edge: bool = False
     from_id: str | None = None
     to_id: str | None = None
+    pin_x: float | None = None
+    pin_y: float | None = None
+    width: float | None = None
+    height: float | None = None
+    loc_pin_x: float | None = None
+    loc_pin_y: float | None = None
+    angle: float | None = None
+    begin_x: float | None = None
+    begin_y: float | None = None
+    end_x: float | None = None
+    end_y: float | None = None
+
+    @property
+    def bounds(self) -> tuple[float, float, float, float] | None:
+        if None in (self.pin_x, self.pin_y, self.width, self.height):
+            return None
+        loc_x = self.loc_pin_x if self.loc_pin_x is not None else self.width / 2
+        loc_y = self.loc_pin_y if self.loc_pin_y is not None else self.height / 2
+        left = self.pin_x - loc_x
+        bottom = self.pin_y - loc_y
+        return (left, bottom, left + self.width, bottom + self.height)
 
 
 @dataclass
@@ -25,6 +49,8 @@ class VsdxPage:
     id: str
     name: str
     shapes: list[VsdxShape] = field(default_factory=list)
+    width: float | None = None
+    height: float | None = None
 
 
 @dataclass
@@ -73,15 +99,36 @@ def _text(shape: ET.Element) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def _shape_elements(parent: ET.Element) -> list[ET.Element]:
-    result: list[ET.Element] = []
+def _shape_elements(
+    parent: ET.Element, parent_id: str | None = None
+) -> list[tuple[ET.Element, str | None]]:
+    result: list[tuple[ET.Element, str | None]] = []
     for child in parent:
         if _local(child.tag) == "Shape":
-            result.append(child)
+            result.append((child, parent_id))
+            child_id = child.get("ID") or parent_id
             for nested in child:
                 if _local(nested.tag) == "Shapes":
-                    result.extend(_shape_elements(nested))
+                    result.extend(_shape_elements(nested, child_id))
     return result
+
+
+def _cells(element: ET.Element) -> dict[str, str]:
+    return {
+        child.get("N", ""): child.get("V", "")
+        for child in element
+        if _local(child.tag) == "Cell" and child.get("N")
+    }
+
+
+def _number(cells: dict[str, str], name: str) -> float | None:
+    value = cells.get(name)
+    if value in {None, ""}:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
 
 
 def _parse_page(page_id: str, name: str, xml: bytes) -> VsdxPage:
@@ -90,6 +137,10 @@ def _parse_page(page_id: str, name: str, xml: bytes) -> VsdxPage:
         (node for node in root if _local(node.tag) == "Shapes"), None
     )
     shape_elements = _shape_elements(shapes_container) if shapes_container is not None else []
+    page_sheet = next(
+        (node for node in root if _local(node.tag) == "PageSheet"), None
+    )
+    page_cells = _cells(page_sheet) if page_sheet is not None else {}
     connect_container = next(
         (node for node in root if _local(node.tag) == "Connects"), None
     )
@@ -105,21 +156,49 @@ def _parse_page(page_id: str, name: str, xml: bytes) -> VsdxPage:
                 endpoints.setdefault(edge_id, {})[from_cell] = target_id
 
     shapes: list[VsdxShape] = []
-    for element in shape_elements:
+    for order, (element, parent_id) in enumerate(shape_elements):
         shape_id = element.get("ID")
         if not shape_id:
             continue
         edge = endpoints.get(shape_id)
+        cells = _cells(element)
+        begin_x = _number(cells, "BeginX")
+        begin_y = _number(cells, "BeginY")
+        end_x = _number(cells, "EndX")
+        end_y = _number(cells, "EndY")
+        is_edge = edge is not None or (
+            begin_x is not None and end_x is not None
+        )
         shapes.append(
             VsdxShape(
                 id=shape_id,
                 label=_text(element),
-                is_edge=edge is not None,
+                name=element.get("NameU") or element.get("Name") or "",
+                parent_id=parent_id,
+                order=order,
+                is_edge=is_edge,
                 from_id=edge.get("BeginX") if edge else None,
                 to_id=edge.get("EndX") if edge else None,
+                pin_x=_number(cells, "PinX"),
+                pin_y=_number(cells, "PinY"),
+                width=_number(cells, "Width"),
+                height=_number(cells, "Height"),
+                loc_pin_x=_number(cells, "LocPinX"),
+                loc_pin_y=_number(cells, "LocPinY"),
+                angle=_number(cells, "Angle"),
+                begin_x=begin_x,
+                begin_y=begin_y,
+                end_x=end_x,
+                end_y=end_y,
             )
         )
-    return VsdxPage(id=page_id, name=name, shapes=shapes)
+    return VsdxPage(
+        id=page_id,
+        name=name,
+        shapes=shapes,
+        width=_number(page_cells, "PageWidth"),
+        height=_number(page_cells, "PageHeight"),
+    )
 
 
 def parse_vsdx(path: Path) -> list[VsdxPage]:

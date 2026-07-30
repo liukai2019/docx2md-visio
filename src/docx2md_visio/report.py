@@ -35,6 +35,7 @@ def write_report(manifest: Manifest, path: Path) -> None:
         f"- Diagrams converted: {converted}",
         f"- Diagrams requiring review: {review_required}",
         f"- Diagrams unresolved: {unresolved}",
+        f"- Geometry JSON generated: {sum(bool(d.geometry_json) for d in manifest.diagrams)}",
         "",
         "## Diagrams",
         "",

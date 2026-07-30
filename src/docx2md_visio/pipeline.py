@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .docx import extract_visio_files, inspect_document, safe_extract_docx
 from .context import write_review_inputs
+from .geometry import write_geometry_artifacts
 from .markdown import map_markdown_images, merge_markdown
 from .models import Manifest
 from .report import write_manifest, write_report
@@ -93,6 +94,23 @@ def convert(
                 continue
             source_vsdx = output_dir / diagram.source_vsdx
             raw_mermaid = source_vsdx.parent / "raw.mmd"
+            try:
+                geometry_path, summary_path, diagnostic_path = write_geometry_artifacts(
+                    source_vsdx, source_vsdx.parent
+                )
+                diagram.geometry_json = geometry_path.relative_to(
+                    output_dir
+                ).as_posix()
+                diagram.diagnostic_svg = diagnostic_path.relative_to(
+                    output_dir
+                ).as_posix()
+                diagram.geometry_summary = summary_path.relative_to(
+                    output_dir
+                ).as_posix()
+            except VsdxError as geometry_exc:
+                diagram.warnings.append(
+                    f"Could not extract VSDX geometry artifacts: {geometry_exc}"
+                )
             try:
                 run_convert2mermaid(converter_command, source_vsdx, raw_mermaid)
                 diagram.raw_mermaid = raw_mermaid.relative_to(output_dir).as_posix()

@@ -50,6 +50,7 @@ PAGES_RELS = """<?xml version="1.0" encoding="UTF-8"?>
 
 PAGE = """<?xml version="1.0" encoding="UTF-8"?>
 <PageContents xmlns="http://schemas.microsoft.com/office/visio/2012/main">
+ <PageSheet><Cell N="PageWidth" V="10"/><Cell N="PageHeight" V="8"/></PageSheet>
  <Shapes>
   <Shape ID="1" NameU="Process">
    <Cell N="PinX" V="2"/><Cell N="PinY" V="4"/>
@@ -62,7 +63,8 @@ PAGE = """<?xml version="1.0" encoding="UTF-8"?>
    <Text><cp IX="0"/><pp IX="0"/>Return response</Text>
   </Shape>
   <Shape ID="3" NameU="Dynamic connector">
-   <Cell N="BeginX" V="3"/><Cell N="EndX" V="5"/>
+   <Cell N="BeginX" V="3"/><Cell N="BeginY" V="4"/>
+   <Cell N="EndX" V="5"/><Cell N="EndY" V="4"/>
    <Text><cp IX="0"/><fld IX="0"/></Text>
   </Shape>
  </Shapes>
@@ -158,6 +160,40 @@ def write_complex_vsdx(path: Path, node_count: int = 12) -> bytes:
     return path.read_bytes()
 
 
+def write_spatial_vsdx(path: Path) -> bytes:
+    page = """<?xml version="1.0" encoding="UTF-8"?>
+<PageContents xmlns="http://schemas.microsoft.com/office/visio/2012/main">
+ <PageSheet><Cell N="PageWidth" V="10"/><Cell N="PageHeight" V="9"/></PageSheet>
+ <Shapes>
+  <Shape ID="10" NameU="Rectangle">
+   <Cell N="PinX" V="5"/><Cell N="PinY" V="4"/>
+   <Cell N="Width" V="8"/><Cell N="Height" V="4"/>
+   <Text>DIALOG 1</Text>
+  </Shape>
+  <Shape ID="11" NameU="Dynamic connector">
+   <Cell N="BeginX" V="2"/><Cell N="BeginY" V="4"/>
+   <Cell N="EndX" V="8"/><Cell N="EndY" V="4"/>
+   <Text>INVITE F1</Text>
+  </Shape>
+  <Shape ID="12" NameU="Dynamic connector">
+   <Cell N="BeginX" V="2"/><Cell N="BeginY" V="7"/>
+   <Cell N="EndX" V="8"/><Cell N="EndY" V="7"/>
+   <Text>OUTSIDE F2</Text>
+  </Shape>
+ </Shapes>
+</PageContents>
+"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", CONTENT_TYPES)
+        archive.writestr("_rels/.rels", ROOT_RELS)
+        archive.writestr("visio/document.xml", VISIO_DOCUMENT)
+        archive.writestr("visio/pages/pages.xml", PAGES)
+        archive.writestr("visio/pages/_rels/pages.xml.rels", PAGES_RELS)
+        archive.writestr("visio/pages/page1.xml", page)
+    return path.read_bytes()
+
+
 def write_docx(path: Path, vsdx: bytes) -> None:
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("[Content_Types].xml", DOCX_CONTENT_TYPES)
@@ -189,6 +225,11 @@ def main() -> None:
     print(docx_path)
     print(complex_vsdx_path)
     print(complex_docx_path)
+    spatial_vsdx_path = output / "synthetic-spatial-frame.vsdx"
+    spatial_docx_path = output / "synthetic-word-with-spatial-frame.docx"
+    write_docx(spatial_docx_path, write_spatial_vsdx(spatial_vsdx_path))
+    print(spatial_vsdx_path)
+    print(spatial_docx_path)
 
 
 if __name__ == "__main__":
