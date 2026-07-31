@@ -6,7 +6,9 @@ from pathlib import Path
 
 from .docx import extract_visio_files, inspect_document, safe_extract_docx
 from .context import write_review_inputs
+from .corrections import sha256_file
 from .geometry import write_geometry_artifacts
+from .human_review import write_human_review_guide
 from .markdown import map_markdown_images, merge_markdown
 from .models import Manifest
 from .report import write_manifest, write_report
@@ -24,17 +26,64 @@ class PipelineError(RuntimeError):
     pass
 
 
+def _run_native_conversion(
+    source_vsdx: Path,
+    raw_mermaid: Path,
+    diagram,
+    output_dir: Path,
+    review_policy: str,
+    reason: str | None = None,
+) -> bool:
+    try:
+        node_count, edge_count = convert_vsdx(source_vsdx, raw_mermaid)
+        diagram.raw_mermaid = raw_mermaid.relative_to(output_dir).as_posix()
+        if diagram.status != "unmapped":
+            diagram.status = "mermaid_generated"
+        prefix = f"{reason}; " if reason else ""
+        diagram.warnings.append(
+            f"{prefix}native parser extracted {node_count} nodes and "
+            f"{edge_count} edges."
+        )
+        assessment = assess_vsdx(source_vsdx)
+        if (
+            diagram.status != "unmapped"
+            and (
+                review_policy == "all"
+                or not assessment.auto_replace_safe
+            )
+        ):
+            diagram.status = "review_required"
+            risks = assessment.risks or [
+                "manual-first review policy applies to every diagram"
+            ]
+            diagram.warnings.append(
+                "Native Mermaid was kept as a draft and the original preview "
+                "was preserved: " + "; ".join(risks) + "."
+            )
+        return True
+    except VsdxError as exc:
+        diagram.status = "conversion_failed"
+        diagram.warnings.append(f"Native VSDX parser failed: {exc}")
+        return False
+
+
 def convert(
     source: Path,
     output_dir: Path,
     pandoc: str = "pandoc",
     converter_command: list[str] | None = None,
+    converter_mode: str = "native",
+    review_policy: str = "all",
     markitdown_command: list[str] | None = None,
     keep_work: bool = False,
 ) -> Manifest:
     source = source.resolve()
     output_dir = output_dir.resolve()
     converter_command = converter_command or ["convert2mermaid"]
+    if converter_mode not in {"native", "auto"}:
+        raise PipelineError("converter_mode must be 'native' or 'auto'.")
+    if review_policy not in {"all", "complex"}:
+        raise PipelineError("review_policy must be 'all' or 'complex'.")
     if not source.is_file():
         raise PipelineError(f"Input file does not exist: {source}")
     if source.suffix.lower() != ".docx":
@@ -63,13 +112,16 @@ def convert(
         output_markdown = output_dir / f"{source.stem}.md"
         manifest = Manifest(
             source_document=str(source),
+            source_document_sha256=sha256_file(source),
             output_markdown=output_markdown.name,
             diagrams=diagrams,
-            tool_versions={
-                "pandoc": tool_version([pandoc]),
-                "convert2mermaid": tool_version(converter_command),
-            },
+            tool_versions={"pandoc": tool_version([pandoc])},
         )
+        manifest.tool_versions["converter_mode"] = converter_mode
+        if converter_mode == "auto":
+            manifest.tool_versions["convert2mermaid"] = tool_version(
+                converter_command
+            )
         if markitdown_command:
             ai_reference = output_dir / f"{source.stem}.ai.md"
             try:
@@ -93,6 +145,7 @@ def convert(
             if not diagram.source_vsdx:
                 continue
             source_vsdx = output_dir / diagram.source_vsdx
+            diagram.source_vsdx_sha256 = sha256_file(source_vsdx)
             raw_mermaid = source_vsdx.parent / "raw.mmd"
             try:
                 geometry_path, summary_path, diagnostic_path = write_geometry_artifacts(
@@ -111,6 +164,15 @@ def convert(
                 diagram.warnings.append(
                     f"Could not extract VSDX geometry artifacts: {geometry_exc}"
                 )
+            if converter_mode == "native":
+                _run_native_conversion(
+                    source_vsdx,
+                    raw_mermaid,
+                    diagram,
+                    output_dir,
+                    review_policy,
+                )
+                continue
             try:
                 run_convert2mermaid(converter_command, source_vsdx, raw_mermaid)
                 diagram.raw_mermaid = raw_mermaid.relative_to(output_dir).as_posix()
@@ -136,16 +198,32 @@ def convert(
                             f"edges versus {native_nodes}/{native_edges}); used "
                             "native Open XML output."
                         )
-                        if not assessment.auto_replace_safe:
+                        if (
+                            review_policy == "all"
+                            or not assessment.auto_replace_safe
+                        ):
                             diagram.status = "review_required"
+                            risks = assessment.risks or [
+                                "manual-first review policy applies to every diagram"
+                            ]
                             diagram.warnings.append(
                                 "Native Mermaid was kept as a draft and the "
                                 "original preview was preserved: "
-                                + "; ".join(assessment.risks)
+                                + "; ".join(risks)
                                 + "."
                             )
                     else:
                         native_candidate.unlink(missing_ok=True)
+                        if (
+                            review_policy == "all"
+                            and diagram.status != "unmapped"
+                        ):
+                            diagram.status = "review_required"
+                            diagram.warnings.append(
+                                "External Mermaid was kept as a draft and the "
+                                "original preview was preserved because the "
+                                "manual-first review policy applies to every diagram."
+                            )
                 except VsdxError as validation_exc:
                     diagram.warnings.append(
                         "Could not cross-check external Mermaid output with the "
@@ -159,36 +237,14 @@ def convert(
                     (source_vsdx.parent / "converter.log").write_text(
                         exc.output, encoding="utf-8"
                     )
-                try:
-                    node_count, edge_count = convert_vsdx(
-                        source_vsdx, raw_mermaid
-                    )
-                    diagram.raw_mermaid = raw_mermaid.relative_to(
-                        output_dir
-                    ).as_posix()
-                    if diagram.status != "unmapped":
-                        diagram.status = "mermaid_generated"
-                    diagram.warnings.append(
-                        f"Native fallback extracted {node_count} nodes and "
-                        f"{edge_count} edges."
-                    )
-                    assessment = assess_vsdx(source_vsdx)
-                    if (
-                        diagram.status != "unmapped"
-                        and not assessment.auto_replace_safe
-                    ):
-                        diagram.status = "review_required"
-                        diagram.warnings.append(
-                            "Native Mermaid was kept as a draft and the "
-                            "original preview was preserved: "
-                            + "; ".join(assessment.risks)
-                            + "."
-                        )
-                except VsdxError as fallback_exc:
-                    diagram.status = "conversion_failed"
-                    diagram.warnings.append(
-                        f"Native VSDX fallback failed: {fallback_exc}"
-                    )
+                _run_native_conversion(
+                    source_vsdx,
+                    raw_mermaid,
+                    diagram,
+                    output_dir,
+                    review_policy,
+                    reason=f"External convert2mermaid failed: {exc}",
+                )
 
         draft_text = draft.read_text(encoding="utf-8")
         # Resolve preview references before writing per-diagram review context.
@@ -198,6 +254,7 @@ def convert(
         output_markdown.write_text(merged, encoding="utf-8")
         write_manifest(manifest, output_dir / "manifest.json")
         write_report(manifest, output_dir / "conversion-report.md")
+        write_human_review_guide(manifest, output_dir)
         return manifest
     finally:
         if work_context:

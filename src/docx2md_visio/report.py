@@ -29,6 +29,7 @@ def write_report(manifest: Manifest, path: Path) -> None:
         "# Conversion report",
         "",
         f"- Source: `{manifest.source_document}`",
+        f"- Source SHA-256: `{manifest.source_document_sha256 or 'unavailable'}`",
         f"- Markdown: `{manifest.output_markdown}`",
         f"- AI reference Markdown: `{manifest.ai_reference_markdown or 'not generated'}`",
         f"- Diagrams found: {len(manifest.diagrams)}",

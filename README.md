@@ -10,8 +10,9 @@ DOCX
  ├─ Pandoc → draft Markdown + media
  ├─ Open XML relationships → preview ↔ VSDX ↔ paragraph mapping
  ├─ embedded VSDX extraction
- ├─ convert2mermaid → Mermaid
- └─ exact Markdown image replacement + manifest + report
+ ├─ native VSDX facts → draft Mermaid + geometry evidence
+ ├─ human review → durable final.mmd correction assets
+ └─ approved exact Markdown replacement + manifest + reports
 ```
 
 ## MVP guarantees
@@ -21,8 +22,9 @@ DOCX
 - Word relationship IDs determine the VSDX/preview mapping.
 - Ambiguous or missing mappings are reported rather than guessed.
 - A failed diagram conversion leaves the original Pandoc image in Markdown.
-- A low-confidence native conversion is saved as a draft but does not replace
-  the original preview.
+- The default manual-first policy saves every conversion as a draft and does
+  not replace the original preview.
+- Every `final.mmd` is backed up with adjacent provenance before apply.
 - The final output retains links to the original extracted VSDX files.
 - The runtime has no Python package dependencies.
 
@@ -31,9 +33,8 @@ DOCX
 - Python 3.10+
 - [Pandoc](https://pandoc.org/)
 - Optional: [convert2mermaid](https://github.com/jgreywolf/convert2mermaid)
-  available as a command, or its Node CLI path supplied explicitly. If it is
-  missing, fails, or silently loses basic graph structure, the MVP
-  automatically uses its built-in Open XML converter.
+  only for `--converter-mode auto` comparison. It is not required by the
+  default offline workflow.
 
 All tools can be installed or copied into an offline network in advance.
 
@@ -55,16 +56,17 @@ pip install -e .
 
 ## Usage
 
-When `convert2mermaid` is already on `PATH`:
+Default native, manual-first conversion:
 
 ```powershell
 docx2md-visio .\documents\design.docx -o .\output
 ```
 
-When running the bundled JavaScript CLI:
+Optional comparison with the JavaScript CLI:
 
 ```powershell
 docx2md-visio .\documents\design.docx -o .\output `
+  --converter-mode auto `
   --converter node `
   --converter .\tools\convert2mermaid\dist\cli.js
 ```
@@ -74,6 +76,7 @@ Use explicit offline tool paths if desired:
 ```powershell
 docx2md-visio .\documents\design.docx -o .\output `
   --pandoc .\tools\pandoc\pandoc.exe `
+  --converter-mode auto `
   --converter .\tools\node\node.exe `
   --converter .\tools\convert2mermaid\dist\cli.js `
   --keep-work
@@ -93,6 +96,7 @@ output/
 ├── design.md
 ├── manifest.json
 ├── conversion-report.md
+├── HUMAN-REVIEW.md
 └── assets/
     ├── media/
     │   └── image1.png
@@ -105,7 +109,7 @@ output/
             ├── diagnostic.svg
             ├── context.md
             ├── review-prompt.md
-            ├── final.mmd       # created by optional review stage
+            ├── final.mmd       # created by the human review stage
             └── converter.log  # only when the converter fails with output
 ```
 
@@ -176,10 +180,11 @@ another shape's bounding box. `spatially_overlaps` means at least 20%. These
 relations use geometry only and must not be promoted to domain semantics
 without supporting evidence.
 
-### Conservative replacement policy
+### Manual-first replacement policy
 
-Native output is marked `review_required` instead of replacing the preview
-when any of these conditions apply:
+The default `--review-policy all` marks every diagram `review_required`.
+`--review-policy complex` restores the older behavior and marks native output
+for review when any of these conditions apply:
 
 - more than one Visio page;
 - more than 10 basic nodes;
@@ -191,23 +196,36 @@ recorded in both `manifest.json` and `conversion-report.md`. This policy avoids
 presenting a flattened flowchart as an accurate conversion of a signaling,
 sequence, UML, or other structurally complex Visio diagram.
 
-## Three-stage offline review workflow
+Durable correction assets live outside output:
 
-The deterministic converter, Claude review and final Markdown application are
-separate stages. Claude never edits the document Markdown directly.
+```text
+corrections/
+├── manifest.json
+└── assets/<document>/<docx-sha256>/<diagram>/<vsdx-sha256>/
+    ├── final-<mmd-sha256>.mmd
+    └── final-<mmd-sha256>.metadata.json
+```
+
+The sidecar records where each Mermaid asset came from even if the global
+correction manifest is unavailable.
+
+## Four-stage manual-first review workflow
+
+The original preview remains authoritative. Claude reminds and checks; the
+human interprets and edits the diagram. See
+[docs/MANUAL_REVIEW.md](docs/MANUAL_REVIEW.md) for the full operational guide.
 
 ### Stage 1: deterministic conversion and context generation
 
 ```powershell
 python -m docx2md_visio `
   .\documents\design.docx `
-  -o .\output `
-  --converter node `
-  --converter .\tools\convert2mermaid\dist\cli.js
+  -o .\output
 ```
 
-If convert2mermaid is unavailable, omit both `--converter` arguments. The
-built-in Open XML fallback will run after the default command cannot be found.
+The native parser and `--review-policy all` are defaults. No Node.js or
+convert2mermaid installation is required. Every original preview is preserved
+until explicit approval.
 
 For each mapped diagram, Stage 1 now creates:
 
@@ -222,59 +240,45 @@ output/assets/visio/diagram-001/
 └── review-prompt.md
 ```
 
+Stage 1 also creates `HUMAN-REVIEW.md` with commands specialized to that output.
 `context.md` is generated deterministically from Pandoc's draft Markdown. It
 contains the nearest preceding heading and bounded text before and after the
 preview. It remains inside the offline output directory and may contain
 document content, so apply the same confidentiality controls as the source
 DOCX.
 
-### Stage 2: let Claude create a candidate final.mmd
-
-Process one `review_required` diagram at a time. Open PowerShell in that
-diagram's directory:
+### Stage 2: back up and triage
 
 ```powershell
-Set-Location .\output\assets\visio\diagram-001
-
-$reviewInput = @"
-$(Get-Content .\review-prompt.md -Raw)
-
-## geometry-summary.md
-$(Get-Content .\geometry-summary.md -Raw)
-
-## context.md
-$(Get-Content .\context.md -Raw)
-
-## raw.mmd
-$(Get-Content .\raw.mmd -Raw)
-"@
-
-$candidate = $reviewInput | claude -p --max-turns 2
-$candidate | Set-Content .\final.mmd -Encoding utf8
+docx2md-visio-review backup .\output
+docx2md-visio-review list .\output
 ```
 
-Inspect `final.mmd` manually. It must contain plain Mermaid source beginning
-with a declaration such as `sequenceDiagram` or `flowchart TD`. It must not
-contain triple-backtick Markdown fences or explanatory prose. If Claude cannot
-establish participant names or connections from the supplied evidence, keep
-the original preview and do not run Stage 3.
+Choose `keep original`, `accept draft`, or `manual redraw` for one diagram.
+Keeping the original requires no file change. Existing `final.mmd` files are
+stored outside output under the sibling `corrections/` directory.
 
-If `geometry-summary.md` contains a labeled frame or grouping that does not
-appear in `final.mmd`, treat the candidate as incomplete unless
-`review-notes.md` explains a Mermaid representation limitation. Consult
-`diagram.json` and `diagnostic.svg` when the compact summary is ambiguous.
+### Stage 3: manually edit and check
 
-For a signaling diagram, a candidate may look like:
+For a signaling diagram:
 
-```text
-sequenceDiagram
-    participant P117 as Participant n117
-    participant P122 as Participant n122
-    P117->>P122: INVITE F1
-    P122->>P117: 100 Trying F2
+```powershell
+docx2md-visio-review scaffold .\output `
+  --diagram diagram-001 `
+  --type sequence
 ```
 
-### Stage 3: apply one human-approved final.mmd
+Edit `final.mmd` beside the original Word/Visio and a local Mermaid preview.
+Then run:
+
+```powershell
+docx2md-visio-review check .\output --diagram diagram-001
+```
+
+The inventory check reports missing and unexpected message labels. The human
+must still verify direction, order, participants, grouping, and meaning.
+
+### Stage 4: apply one human-approved final.mmd
 
 After comparing `final.mmd` with the original preview:
 
@@ -294,7 +298,10 @@ docx2md-visio-apply .\output --diagram diagram-001 --approve
 The apply command:
 
 - requires the explicit `--approve` flag;
+- backs up every `final.mmd` before later checks;
+- creates an adjacent provenance sidecar for every correction asset;
 - validates the Mermaid declaration;
+- checks message-label conservation;
 - rejects Markdown code fences and empty output;
 - uses `manifest.json` to replace the exact preview;
 - wraps `final.mmd` in a Markdown Mermaid code block;
@@ -302,8 +309,25 @@ The apply command:
 - creates `<document>.md.pre-review` before the first reviewed replacement;
 - records `converted_after_review` and `final_mermaid` in `manifest.json`.
 
-Repeat Stages 2 and 3 for each diagram that a human approves. Unapproved
+Use `--allow-message-differences` only after explicitly examining the generated
+`manual-check.json`. Repeat Stages 2–4 for each approved diagram. Unapproved
 diagrams continue to display their original Pandoc preview.
+
+Restore a previous approved correction only when the current source VSDX hash
+matches:
+
+```powershell
+docx2md-visio-review restore .\output --diagram diagram-001
+```
+
+Restoration creates `final.mmd` for reinspection; it never applies it.
+
+Start Claude Code in the repository root and ask:
+
+```text
+Use $review-visio-mermaid on .\output. Remind me of only the next safe step.
+Do not redraw the diagram for me.
+```
 
 ## Markdown correction skill
 
@@ -348,7 +372,8 @@ reviewed Mermaid blocks through the document correction workflow.
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the supported topology,
 bundle creation, isolated-network installation, Claude Code operation, and
 acceptance checks. `scripts/New-OfflineBundle.ps1` can package the repository
-with optional Pandoc, Node, convert2mermaid, and wheelhouse directories.
+with optional Pandoc, MarkItDown wheelhouse, and legacy Node/convert2mermaid
+comparison tools.
 
 Headers, footers, text boxes stored outside the main document flow, linked
 rather than embedded Visio files, and visual floating-object coordinates are

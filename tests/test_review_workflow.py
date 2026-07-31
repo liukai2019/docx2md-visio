@@ -48,7 +48,8 @@ def test_context_uses_nearest_heading_and_surrounding_text(
     assert "Before the diagram." in context
     assert "Figure 2 signaling." in context
     assert "Not part of this context." not in context
-    assert "do not include triple-backtick fences" in prompt
+    assert "$review-visio-mermaid" in prompt
+    assert "Do not generate or overwrite `final.mmd`" in prompt
 
 
 def test_apply_review_replaces_preview_and_creates_backup(
@@ -81,7 +82,13 @@ def test_apply_review_replaces_preview_and_creates_backup(
         json.dumps(manifest), encoding="utf-8"
     )
 
-    result = apply_review(tmp_path, "diagram-001", approve=True)
+    corrections = tmp_path / "durable-corrections"
+    result = apply_review(
+        tmp_path,
+        "diagram-001",
+        approve=True,
+        corrections_dir=corrections,
+    )
 
     rendered = result.read_text(encoding="utf-8")
     saved_manifest = json.loads(
@@ -97,6 +104,15 @@ def test_apply_review_replaces_preview_and_creates_backup(
     report = (tmp_path / "conversion-report.md").read_text(encoding="utf-8")
     assert "Diagrams converted: 1" in report
     assert "converted_after_review" in report
+    correction_manifest = json.loads(
+        (corrections / "manifest.json").read_text(encoding="utf-8")
+    )
+    approved = [
+        item for item in correction_manifest["assets"] if item["approved"]
+    ]
+    assert len(approved) == 1
+    assert (corrections / approved[0]["asset"]).is_file()
+    assert (corrections / approved[0]["metadata"]).is_file()
 
 
 def test_apply_review_requires_explicit_approval(tmp_path: Path) -> None:
@@ -125,5 +141,74 @@ def test_apply_review_rejects_fenced_mermaid(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
+    corrections = tmp_path / "corrections"
     with pytest.raises(ApplyError, match="code fences"):
-        apply_review(tmp_path, "diagram-001", approve=True)
+        apply_review(
+            tmp_path,
+            "diagram-001",
+            approve=True,
+            corrections_dir=corrections,
+        )
+
+    saved = json.loads(
+        (corrections / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert len(saved["assets"]) == 1
+    assert saved["assets"][0]["approved"] is False
+
+
+def test_apply_blocks_message_differences_but_backs_up_asset(
+    tmp_path: Path,
+) -> None:
+    diagram = _diagram()
+    diagram.geometry_json = "assets/visio/diagram-001/diagram.json"
+    diagram_dir = tmp_path / "assets/visio/diagram-001"
+    diagram_dir.mkdir(parents=True)
+    (diagram_dir / "source.vsdx").write_bytes(b"source")
+    (diagram_dir / "diagram.json").write_text(
+        json.dumps(
+            {
+                "pages": [
+                    {
+                        "shapes": [
+                            {"kind": "one_dimensional", "text": "INVITE F1"},
+                            {"kind": "one_dimensional", "text": "200 OK F2"},
+                        ]
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (diagram_dir / "final.mmd").write_text(
+        "sequenceDiagram\nA->>B: INVITE F1\n", encoding="utf-8"
+    )
+    (tmp_path / "document.md").write_text(
+        '<img src="assets/media/image1.emf" />', encoding="utf-8"
+    )
+    (tmp_path / "manifest.json").write_text(
+        json.dumps(
+            {
+                "source_document": "input.docx",
+                "output_markdown": "document.md",
+                "diagrams": [diagram.to_dict()],
+            }
+        ),
+        encoding="utf-8",
+    )
+    corrections = tmp_path / "corrections"
+
+    with pytest.raises(ApplyError, match="Message-conservation"):
+        apply_review(
+            tmp_path,
+            "diagram-001",
+            approve=True,
+            corrections_dir=corrections,
+        )
+
+    saved = json.loads(
+        (corrections / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert len(saved["assets"]) == 1
+    assert saved["assets"][0]["approved"] is False
+    assert (diagram_dir / "manual-check.json").is_file()

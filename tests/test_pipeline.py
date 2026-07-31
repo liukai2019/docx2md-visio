@@ -68,6 +68,8 @@ out.write_text("flowchart LR\\n  A --> B\\n", encoding="utf-8")
         output,
         pandoc=str(pandoc),
         converter_command=[str(converter)],
+        converter_mode="auto",
+        review_policy="complex",
     )
 
     markdown = (output / "sample.md").read_text(encoding="utf-8")
@@ -85,3 +87,36 @@ out.write_text("flowchart LR\\n  A --> B\\n", encoding="utf-8")
     assert (output / "assets/visio/diagram-001/diagnostic.svg").is_file()
     assert (output / "assets/visio/diagram-001/geometry-summary.md").is_file()
     assert saved["diagrams"][0]["geometry_json"].endswith("diagram.json")
+    assert (output / "HUMAN-REVIEW.md").is_file()
+
+
+def test_native_manual_first_is_default(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "sample.docx"
+    output = tmp_path / "output"
+    make_docx(source)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    pandoc = bin_dir / "pandoc.cmd"
+    pandoc.write_text('@python "%~dp0pandoc_impl.py" %*\n', encoding="utf-8")
+    (bin_dir / "pandoc_impl.py").write_text(
+        """import pathlib, sys
+if "--version" in sys.argv:
+ print("fake-pandoc 1.0"); raise SystemExit()
+out = pathlib.Path(next(a.split("=",1)[1] for a in sys.argv if a.startswith("--output=")))
+media = pathlib.Path(next(a.split("=",1)[1] for a in sys.argv if a.startswith("--extract-media=")))
+(media/"media").mkdir(parents=True, exist_ok=True)
+(media/"media"/"image1.png").write_bytes(b"preview")
+out.write_text('![diagram](assets/media/image1.png)\\n', encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+
+    manifest = convert(source, output, pandoc=str(pandoc))
+
+    markdown = (output / "sample.md").read_text(encoding="utf-8")
+    assert manifest.tool_versions["converter_mode"] == "native"
+    assert "convert2mermaid" not in manifest.tool_versions
+    assert manifest.diagrams[0].status == "review_required"
+    assert "![diagram]" in markdown
+    assert "```mermaid" not in markdown

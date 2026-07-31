@@ -8,7 +8,7 @@ The canonical pipeline is fully local:
 DOCX
   -> Pandoc canonical Markdown and media
   -> OOXML relationship/VSDX mapping
-  -> convert2mermaid or native fallback
+  -> native VSDX geometry and draft Mermaid
   -> conservative replacement, manifest and report
   -> deterministic Markdown audit
   -> optional Claude review of flagged items
@@ -48,15 +48,19 @@ pip install --no-index --find-links ..\tools\wheelhouse .
 If no wheelhouse is needed, use `pip install .`. Pandoc can also remain in its
 existing system installation.
 
-Build convert2mermaid before isolation or inside the network with its cached
-Node dependencies. Pass the exact executable and JavaScript entrypoint rather
-than relying on `PATH`.
+Node and convert2mermaid are optional legacy comparison tools. The default
+native workflow requires neither.
 
 ## Run and correct
 
 ```powershell
 docx2md-visio .\input\design.docx -o .\output `
+  --pandoc C:\Tools\Pandoc\pandoc.exe
+
+# Optional legacy comparison:
+docx2md-visio .\input\design.docx -o .\output-auto `
   --pandoc C:\Tools\Pandoc\pandoc.exe `
+  --converter-mode auto `
   --converter C:\Tools\node\node.exe `
   --converter C:\Tools\convert2mermaid\dist\cli.js
 
@@ -84,10 +88,18 @@ Use $correct-docx-markdown to audit output/design.md. Do not invent technical
 content and leave ambiguous findings for human review.
 ```
 
+For Visio/Mermaid human review invoke the separate reminder skill:
+
+```text
+Use $review-visio-mermaid on .\output. Remind me of only the next safe step.
+Do not redraw the diagram for me.
+```
+
 Mermaid review remains separate: Stage 1 creates `context.md`, `raw.mmd`,
 `diagram.json`, `geometry-summary.md`, `diagnostic.svg`, and
-`review-prompt.md`; Stage 2 creates `final.mmd`; Stage 3 applies it only after
-explicit human approval.
+`review-prompt.md`; Stage 2 backs up and triages; Stage 3 is human editing and
+checking; Stage 4 applies only after explicit human approval. See
+`docs/MANUAL_REVIEW.md`.
 
 ## Acceptance checks
 

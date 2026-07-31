@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Visio Mermaid"
+  short_description: "Guide safe human review and preserve Mermaid assets"
+  default_prompt: "Use $review-visio-mermaid to inspect my output and remind me of the next safe human-review step."

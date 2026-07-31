@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.0
+
+- Make the built-in VSDX parser the default; keep convert2mermaid only behind
+  `--converter-mode auto`.
+- Make `--review-policy all` the default so original previews remain
+  authoritative until human approval.
+- Generate `HUMAN-REVIEW.md` with an exact per-output manual workflow.
+- Add `docx2md-visio-review` for listing, scaffolding, checking, backing up,
+  and restoring manual Mermaid assets.
+- Back up every `final.mmd` into a content-addressed sibling `corrections/`
+  store before apply.
+- Add adjacent `.metadata.json` provenance for every Mermaid asset, including
+  DOCX/VSDX/geometry hashes and document relationship location.
+- Restore approved corrections only when source VSDX SHA-256 matches exactly.
+- Add deterministic message-label conservation checks and require an explicit
+  override for reviewed differences.
+- Add the `$review-visio-mermaid` Claude Code skill as a reminder and safety
+  guide rather than an autonomous redrawing agent.
+
 ## 0.5.0
 
 - Add a domain-neutral VSDX geometry intermediate representation in

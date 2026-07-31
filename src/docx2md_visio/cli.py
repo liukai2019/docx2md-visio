@@ -30,6 +30,24 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--converter-mode",
+        choices=["native", "auto"],
+        default="native",
+        help=(
+            "Use the built-in parser only (native, default), or try "
+            "convert2mermaid and cross-check it (auto)."
+        ),
+    )
+    parser.add_argument(
+        "--review-policy",
+        choices=["all", "complex"],
+        default="all",
+        help=(
+            "Preserve every original preview for human review (all, default), "
+            "or auto-replace only basic low-risk diagrams (complex)."
+        ),
+    )
+    parser.add_argument(
         "--keep-work",
         action="store_true",
         help="Keep unpacked DOCX and draft Markdown under the output directory",
@@ -55,6 +73,8 @@ def main(argv: list[str] | None = None) -> int:
             args.output_dir,
             pandoc=args.pandoc,
             converter_command=args.converter_command,
+            converter_mode=args.converter_mode,
+            review_policy=args.review_policy,
             markitdown_command=args.markitdown_command,
             keep_work=args.keep_work,
         )
